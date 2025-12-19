@@ -231,8 +231,8 @@
             { id: 'jelly_original', name: 'ZERO美顏膠原凍 (原味)', minPrice: 45, maxPrice: 48, img1: 'https://shoplineimg.com/5ea6673cf58d53001a5e49d8/68f20ed9ca6a1f000a48d0c0/540x.webp?source_format=jpg', img2: 'https://shoplineimg.com/5ea6673cf58d53001a5e49d8/68f588a023fc060014fd870d/540x.webp?source_format=jpg' }
         ];
 
-        // 您的新專屬 API (已更新)
-        const scriptURL = 'https://script.google.com/macros/s/AKfycbyJdHqLdAjeJ-xLJme22UeCgFJo2BOijis3RXQMdgawESNso-GhaQ1HPdRxDe0p2ISQ/exec';
+        // 🔥🔥🔥 請將下面的網址換成您 Google Apps Script 部署後的「新網址」 🔥🔥🔥
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbxjgrWQ_MoqDPh_Lb2dA4v_u0KHhtL3BjVwzopMhSf5BNhawSajzhBenKPMjCYiTm5T3g/exec';
 
         const cart = {};
         let currentPayload = null;
@@ -281,7 +281,7 @@
                 container.innerHTML += card;
             });
             fetchOrders();
-            setInterval(fetchOrders, 8000);
+            setInterval(fetchOrders, 15000); // 改為 15 秒更新一次，避免太頻繁
             updateCountdown();
             setInterval(updateCountdown, 1000);
         }
@@ -328,7 +328,8 @@
                 }
             });
             const rangeText = `$${Math.round(minTotal).toLocaleString()} ~ $${Math.round(maxTotal).toLocaleString()}`;
-            document.getElementById('header-total').innerText = rangeText;
+            
+            // ✅ 修正點：只更新存在的 footer 元素，不更新不存在的 header-total
             document.getElementById('footer-range-total').innerText = rangeText;
             document.getElementById('total-count').innerText = count;
         }
@@ -397,7 +398,7 @@
                 uid: deviceUUID, 
                 uuid: deviceUUID, 
                 order: orderDetailsForAPI.join('\n'), 
-                total: document.getElementById('header-total').innerText
+                total: document.getElementById('footer-range-total').innerText
             };
             document.getElementById('modal-name').innerText = name;
             document.getElementById('modal-items').innerHTML = orderItemsHTML;
@@ -429,41 +430,65 @@
             const submitBtn = document.getElementById('final-submit-btn');
             submitBtn.disabled = true;
             submitBtn.innerText = '處理中...';
+            
             localStorage.setItem('bg_buyer_name', currentPayload.name);
+
             const logContainer = document.getElementById('order-log-cards');
-            const now = new Date();
-            const timeStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
+            if(logContainer.innerHTML.includes('尚無訂單') || logContainer.innerText.includes('載入中')) {
+                logContainer.innerHTML = '';
+            }
+            
+            // 插入假卡片讓使用者知道有反應
             const tempHTML = `
-                <div class="flex-none w-40 bg-purple-50 p-3 rounded-xl border border-benq-purple/30 animate-pulse flex flex-col gap-1">
+                <div id="temp-card" class="flex-none w-40 bg-purple-50 p-3 rounded-xl border border-benq-purple/30 animate-pulse flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <div class="w-6 h-6 rounded-full bg-benq-purple text-white text-xs font-bold flex items-center justify-center">
                             ${currentPayload.name.charAt(0).toUpperCase()}
                         </div>
                         <div class="text-xs font-bold text-slate-800 truncate">${currentPayload.name}</div>
                     </div>
-                    <div class="text-[10px] text-benq-purple">更新中...</div>
+                    <div class="text-[10px] text-benq-purple">資料傳輸中...</div>
                 </div>
             `;
-            if(logContainer.innerHTML.includes('尚無訂單')) {
-                logContainer.innerHTML = '';
-            }
             logContainer.insertAdjacentHTML('afterbegin', tempHTML);
 
-            // 🔥 關鍵修正：Content-Type 改為 text/plain 避免 CORS 問題
+            // 送出資料
             fetch(scriptURL, {
                 method: 'POST',
-                mode: 'no-cors', 
-                headers: { 'Content-Type': 'text/plain' }, 
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify(currentPayload)
             }).then(() => {
-                alert(`訂單送出成功！\n\n歡迎您一起「求新求變，共創未來！」`);
-                location.reload();
+                console.log("請求已送出，正在驗證...");
+                setTimeout(() => {
+                    fetch(scriptURL + '?t=' + new Date().getTime())
+                        .then(res => res.json())
+                        .then(data => {
+                            const myOrder = data.find(r => r.name === currentPayload.name);
+                            const tempCard = document.getElementById('temp-card');
+                            if(tempCard) tempCard.remove();
+
+                            if (myOrder) {
+                                alert(`訂單送出成功！\n\n歡迎您一起「求新求變，共創未來！」`);
+                                location.reload();
+                            } else {
+                                alert('⚠️ 訂單未成功！\n\n原因可能是「此姓名已被其他人使用」。\n請修改姓名後再試一次（例如加個暱稱）。');
+                                submitBtn.disabled = false;
+                                submitBtn.innerText = '確認送出';
+                                closeModal();
+                                fetchOrders();
+                            }
+                        });
+                }, 1500); 
             }).catch(error => {
                 console.error('Error:', error);
-                alert('網路錯誤，請重試。');
-                closeModal();
+                alert('網路連線錯誤，請檢查網路後重試。');
+                const tempCard = document.getElementById('temp-card');
+                if(tempCard) tempCard.remove();
+                
                 submitBtn.disabled = false;
                 submitBtn.innerText = '確認送出';
+                closeModal();
             });
         }
 
