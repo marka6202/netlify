@@ -80,6 +80,12 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
+        /* 自定義捲軸 (給訂單明細用) */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
         /* 流光按鈕 */
         .btn-shiny {
             background: linear-gradient(90deg, #492083, #8b5cf6, #492083);
@@ -142,7 +148,7 @@
                     刷新資料
                 </button>
             </div>
-            <div class="flex gap-3 overflow-x-auto no-scrollbar pb-2" id="order-log-cards">
+            <div class="flex gap-4 overflow-x-auto no-scrollbar pb-2 items-start" id="order-log-cards">
                 <div class="flex-none w-full text-center text-slate-400 text-sm py-2">載入中...</div>
             </div>
             <div class="mt-2 text-right text-xs text-slate-400 font-medium">
@@ -166,7 +172,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                     </div>
-                    <input type="text" id="buyer-name" placeholder="請輸入姓名" 
+                    <input type="text" id="buyer-name" placeholder="請輸入姓名 (同名將自動覆蓋舊單)" 
                         class="w-full pl-10 pr-4 py-3.5 bg-slate-50 border border-slate-200 text-slate-800 text-base rounded-xl focus:ring-2 focus:ring-benq-purple/50 focus:border-benq-purple outline-none transition shadow-inner">
                 </div>
                 <button onclick="reviewOrder()" id="submit-btn"
@@ -179,7 +185,7 @@
             </div>
             <div class="text-[11px] text-slate-500 mt-2.5 text-center flex justify-center items-center gap-1.5 bg-slate-50 py-1.5 rounded-lg border border-slate-100">
                 <svg class="w-3.5 h-3.5 text-amber-500 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span class="leading-tight text-left md:text-center">系統已綁定裝置！若需修改訂單，請用<b>「原本的裝置/瀏覽器」</b>輸入<b>「相同姓名」</b>即可自動覆蓋。</span>
+                <span class="leading-tight text-left md:text-center"><b>同名覆蓋模式：</b>若需修改訂單，輸入<b>「完全相同的姓名」</b>送出，系統將自動以新訂單取代舊資料。</span>
             </div>
         </div>
     </div>
@@ -231,8 +237,8 @@
             { id: 'jelly_original', name: 'ZERO美顏膠原凍 (原味)', minPrice: 45, maxPrice: 48, img1: 'https://shoplineimg.com/5ea6673cf58d53001a5e49d8/68f20ed9ca6a1f000a48d0c0/540x.webp?source_format=jpg', img2: 'https://shoplineimg.com/5ea6673cf58d53001a5e49d8/68f588a023fc060014fd870d/540x.webp?source_format=jpg' }
         ];
 
-        // 🔥🔥🔥 請將下面的網址換成您 Google Apps Script 部署後的「新網址」 🔥🔥🔥
-        const scriptURL = 'https://script.google.com/macros/s/AKfycbxjgrWQ_MoqDPh_Lb2dA4v_u0KHhtL3BjVwzopMhSf5BNhawSajzhBenKPMjCYiTm5T3g/exec';
+        // 🔥🔥🔥 記得把這裡的網址，換成您剛剛部署好的「新」網址喔！ 🔥🔥🔥
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbzcn4Q-H6k8T3EuIzmoiZHnbF9-0jYh5eWu-dLBJ3IS1zPO27WDUUwBjP2xsDWzlMEzUA/exec';
 
         const cart = {};
         let currentPayload = null;
@@ -281,7 +287,7 @@
                 container.innerHTML += card;
             });
             fetchOrders();
-            setInterval(fetchOrders, 15000); // 改為 15 秒更新一次，避免太頻繁
+            setInterval(fetchOrders, 15000); 
             updateCountdown();
             setInterval(updateCountdown, 1000);
         }
@@ -329,11 +335,11 @@
             });
             const rangeText = `$${Math.round(minTotal).toLocaleString()} ~ $${Math.round(maxTotal).toLocaleString()}`;
             
-            // ✅ 修正點：只更新存在的 footer 元素，不更新不存在的 header-total
             document.getElementById('footer-range-total').innerText = rangeText;
             document.getElementById('total-count').innerText = count;
         }
 
+        // 🔥 重點修改區：把訂單卡片變大、顯示完整資訊 🔥
         function fetchOrders() {
             const logContainer = document.getElementById('order-log-cards');
             fetch(scriptURL + '?t=' + new Date().getTime())
@@ -352,17 +358,30 @@
                             const d = new Date(order.time);
                             timeStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
                         }
-                        const itemsSummary = order.items.replace(/\n/g, ' ').substring(0, 12) + '...';
+                        
+                        // 1. 把換行符號 (\n) 轉成 HTML 的換行 (<br>)
+                        const itemsFull = order.items.replace(/\n/g, '<br>');
+                        
+                        // 2. 新的卡片 HTML 結構：變寬(w-56)、顯示總金額、顯示完整內容(可捲動)
                         html += `
-                            <div class="flex-none w-40 bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-1">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-6 h-6 rounded-full bg-benq-light text-benq-purple text-xs font-bold flex items-center justify-center">
-                                        ${order.name.charAt(0).toUpperCase()}
+                            <div class="flex-none w-56 bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
+                                <div class="flex justify-between items-start border-b border-slate-100 pb-2">
+                                    <div class="flex items-center gap-1.5 overflow-hidden">
+                                        <div class="flex-none w-6 h-6 rounded-full bg-benq-light text-benq-purple text-xs font-bold flex items-center justify-center">
+                                            ${order.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div class="text-xs font-bold text-slate-700 truncate">${order.name}</div>
                                     </div>
-                                    <div class="text-xs font-bold text-slate-700 truncate">${order.name}</div>
+                                    <div class="text-xs font-bold text-benq-purple whitespace-nowrap">${order.total}</div>
                                 </div>
-                                <div class="text-[10px] text-slate-400 truncate">${itemsSummary}</div>
-                                <div class="text-[10px] text-slate-300 mt-auto">${timeStr}</div>
+
+                                <div class="text-[11px] text-slate-500 leading-tight h-20 overflow-y-auto custom-scrollbar">
+                                    ${itemsFull}
+                                </div>
+
+                                <div class="text-[10px] text-slate-300 mt-auto text-right pt-1 border-t border-slate-50">
+                                    ${timeStr}
+                                </div>
                             </div>
                         `;
                     });
@@ -426,6 +445,7 @@
             }, 300);
         }
 
+        // 🔥 更新後的送出邏輯：同名覆蓋確認 🔥
         function finalSubmit() {
             const submitBtn = document.getElementById('final-submit-btn');
             submitBtn.disabled = true;
@@ -440,7 +460,7 @@
             
             // 插入假卡片讓使用者知道有反應
             const tempHTML = `
-                <div id="temp-card" class="flex-none w-40 bg-purple-50 p-3 rounded-xl border border-benq-purple/30 animate-pulse flex flex-col gap-1">
+                <div id="temp-card" class="flex-none w-56 bg-purple-50 p-3 rounded-xl border border-benq-purple/30 animate-pulse flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <div class="w-6 h-6 rounded-full bg-benq-purple text-white text-xs font-bold flex items-center justify-center">
                             ${currentPayload.name.charAt(0).toUpperCase()}
@@ -469,14 +489,16 @@
                             if(tempCard) tempCard.remove();
 
                             if (myOrder) {
-                                alert(`訂單送出成功！\n\n歡迎您一起「求新求變，共創未來！」`);
+                                alert(`\n訂單送出成功！\n\n歡迎您一起「求新求變，共創未來！」`);
                                 location.reload();
                             } else {
-                                alert('⚠️ 訂單未成功！\n\n原因可能是「此姓名已被其他人使用」。\n請修改姓名後再試一次（例如加個暱稱）。');
+                                // 因為後端已經取消了名字檢查，所以如果這裡沒找到訂單，通常是網路延遲或試算表寫入太慢
+                                alert('⚠️ 系統回應較慢，請手動刷新頁面確認。\n\n若「目前訂單」中已有您的名字，代表已成功；若無，請再送出一次。');
+                                
                                 submitBtn.disabled = false;
                                 submitBtn.innerText = '確認送出';
                                 closeModal();
-                                fetchOrders();
+                                fetchOrders(); 
                             }
                         });
                 }, 1500); 
